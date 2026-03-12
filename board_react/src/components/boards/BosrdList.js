@@ -3,12 +3,13 @@ import axiosInstance from "../../api/axiosInstance";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Table from "react-bootstrap/Table";
 import { Link } from "react-router-dom";
-import { FaArrowUp } from "react-icons/fa"; // 아이콘 라이브러리 (선택 사항)
+import { FaArrowUp } from "react-icons/fa";
 
 function BoardList() {
   const [posts, setPosts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [showScroll, setShowScroll] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const postsPerPage = 20;
   const indexOfLastPost = currentPage * postsPerPage;
@@ -25,7 +26,22 @@ function BoardList() {
   }, [currentPage]);
 
   useEffect(() => {
-    axiosInstance.get("/boards").then((res) => setPosts(res.data));
+    const fetchBoards = async () => {
+      try {
+        setLoading(true);
+        const res = await axiosInstance.get("/boards");
+        const sortedPosts = res.data.slice().sort((a, b) => {
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+        setPosts(sortedPosts);
+      } catch (error) {
+        console.error("게시글 조회 실패:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBoards();
   }, []);
 
   useEffect(() => {
@@ -36,15 +52,6 @@ function BoardList() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    axiosInstance.get("/boards").then((res) => {
-      const sortedPosts = res.data.slice().sort((a, b) => {
-        return new Date(b.createdAt) - new Date(a.createdAt); // 내림차순 정렬
-      });
-      setPosts(sortedPosts);
-    });
-  }, []);
-
   return (
     <div id="BoardList" className="container mt-8">
       <div className="d-flex justify-content-between align-items-center mb-3">
@@ -53,12 +60,8 @@ function BoardList() {
           글 작성
         </Link>
       </div>
-      <Table
-        table="true"
-        table-hover="true"
-        table-striped="true"
-        custom-table="true"
-      >
+
+      <Table>
         <thead className="table-dark">
           <tr>
             <th style={{ width: 80 }}>번호</th>
@@ -68,9 +71,15 @@ function BoardList() {
           </tr>
         </thead>
         <tbody>
-          {currentPosts.length === 0 ? (
+          {loading ? (
             <tr>
-              <td colSpan={3} className="text-center text-secondary">
+              <td colSpan={4} className="text-center text-secondary">
+                불러오는 중...
+              </td>
+            </tr>
+          ) : currentPosts.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="text-center text-secondary">
                 등록된 게시글이 없습니다.
               </td>
             </tr>
@@ -94,6 +103,7 @@ function BoardList() {
           )}
         </tbody>
       </Table>
+
       <div
         className="pagination"
         style={{
@@ -145,6 +155,7 @@ function BoardList() {
           {">>"}
         </button>
       </div>
+
       {showScroll && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
