@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import axiosInstance from "../../api/axiosInstance";
 import { useNavigate } from "react-router-dom";
 import { Form, Button, Container, Alert } from "react-bootstrap";
 
@@ -13,10 +13,16 @@ function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     try {
-      await axios.post("/api/users/register", { username, password, email });
-      navigate("/login"); // 회원가입 성공 후 로그인 페이지 이동
+      await axiosInstance.post("/users/register", {
+        username,
+        password,
+        email,
+      });
+      navigate("/login");
     } catch (err) {
+      console.error(err);
       setError("회원가입 실패: 입력한 정보를 확인하세요.");
     }
   };

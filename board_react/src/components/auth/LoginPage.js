@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import axiosInstance from "../../api/axiosInstance";
 import { useNavigate, Link } from "react-router-dom";
 import { Form, Button, Container, Alert } from "react-bootstrap";
 
@@ -12,12 +12,17 @@ function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     try {
-      const res = await axios.post("/api/users/login", { username, password });
-      // 예: 토큰 저장 (localStorage/cookie 등)
+      const res = await axiosInstance.post("/users/login", {
+        username,
+        password,
+      });
+
       localStorage.setItem("token", res.data.token);
-      navigate("/boards"); // 로그인 성공 시 홈으로 이동
+      navigate("/boards");
     } catch (err) {
+      console.error(err);
       setError("로그인 실패: 아이디 또는 비밀번호를 확인하세요.");
     }
   };
