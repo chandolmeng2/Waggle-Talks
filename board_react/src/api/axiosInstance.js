@@ -1,12 +1,6 @@
 // src/api/axiosInstance.js
 import axios from "axios";
 
-// 전역 토큰 변수 및 setter
-let token = null;
-export const setToken = (newToken) => {
-  token = newToken;
-};
-
 const axiosInstance = axios.create({
   baseURL: "/api", 
   timeout: 5000,
