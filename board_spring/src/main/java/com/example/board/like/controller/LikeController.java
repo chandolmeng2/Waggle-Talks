@@ -20,47 +20,92 @@ public class LikeController {
 	private final LikeService likeService;
 	private final UserService userService;
 
-	@GetMapping("/{postId}/likes-status")
-	public Map<String, Object> getLikesStatus(@PathVariable("postId") Long postId,
-			@AuthenticationPrincipal UserDetails userDetails) {
-		User user = userService.findByUsername(userDetails.getUsername());
+private Map<String, Object> buildLikeResponse(Long postId, User user) {
+    int likeCount = likeService.getLikeCountByPostId(postId);
+    int dislikeCount = likeService.getDislikeCountByPostId(postId);
 
-		int likeCount = likeService.getLikeCountByPostId(postId);
-		int dislikeCount = likeService.getDislikeCountByPostId(postId);
-		boolean liked = likeService.isPostLikedByUser(postId, user);
-		boolean disliked = likeService.isPostDislikedByUser(postId, user);
+    boolean liked = false;
+    boolean disliked = false;
 
-		Map<String, Object> response = new HashMap<>();
-		response.put("likeCount", likeCount);
-		response.put("dislikeCount", dislikeCount);
-		response.put("likedByUser", liked);
-		response.put("dislikedByUser", disliked);
+    if (user != null) {
+        liked = likeService.isPostLikedByUser(postId, user);
+        disliked = likeService.isPostDislikedByUser(postId, user);
+    }
 
-		return response;
-	}
+    Map<String, Object> response = new HashMap<>();
+    response.put("likeCount", likeCount);
+    response.put("dislikeCount", dislikeCount);
+    response.put("likedByUser", liked);
+    response.put("dislikedByUser", disliked);
+    return response;
+}
 
+@GetMapping("/{postId}/likes-status")
+public Map<String, Object> getLikesStatus(
+        @PathVariable("postId") Long postId,
+        @AuthenticationPrincipal UserDetails userDetails) {
+
+    User user = null;
+    if (userDetails != null) {
+        user = userService.findByUsername(userDetails.getUsername());
+    }
+
+    int likeCount = likeService.getLikeCountByPostId(postId);
+    int dislikeCount = likeService.getDislikeCountByPostId(postId);
+
+    boolean liked = false;
+    boolean disliked = false;
+
+    if (user != null) {
+        liked = likeService.isPostLikedByUser(postId, user);
+        disliked = likeService.isPostDislikedByUser(postId, user);
+    }
+
+    Map<String, Object> response = new HashMap<>();
+    response.put("likeCount", likeCount);
+    response.put("dislikeCount", dislikeCount);
+    response.put("likedByUser", liked);
+    response.put("dislikedByUser", disliked);
+
+    return response;
+}
 	@PostMapping("/{postId}/like")
-	public void like(@PathVariable("postId") Long postId, @AuthenticationPrincipal UserDetails userDetails) {
+	public Map<String, Object> like(
+			@PathVariable("postId") Long postId,
+			@AuthenticationPrincipal UserDetails userDetails) {
+
 		User user = userService.findByUsername(userDetails.getUsername());
 		likeService.toggleLike(postId, user, true);
+		return buildLikeResponse(postId, user);
 	}
 
 	@PostMapping("/{postId}/dislike")
-	public void dislike(@PathVariable("postId") Long postId, @AuthenticationPrincipal UserDetails userDetails) {
+	public Map<String, Object> dislike(
+			@PathVariable("postId") Long postId,
+			@AuthenticationPrincipal UserDetails userDetails) {
+
 		User user = userService.findByUsername(userDetails.getUsername());
 		likeService.toggleLike(postId, user, false);
+		return buildLikeResponse(postId, user);
 	}
 
 	@PostMapping("/{postId}/like/cancel")
-	public void cancelLike(@PathVariable("postId") Long postId, @AuthenticationPrincipal UserDetails userDetails) {
+	public Map<String, Object> cancelLike(
+			@PathVariable("postId") Long postId,
+			@AuthenticationPrincipal UserDetails userDetails) {
+
 		User user = userService.findByUsername(userDetails.getUsername());
 		likeService.cancelLike(postId, user);
+		return buildLikeResponse(postId, user);
 	}
 
 	@PostMapping("/{postId}/dislike/cancel")
-	public void cancelDislike(@PathVariable("postId") Long postId, @AuthenticationPrincipal UserDetails userDetails) {
+	public Map<String, Object> cancelDislike(
+			@PathVariable("postId") Long postId,
+			@AuthenticationPrincipal UserDetails userDetails) {
+
 		User user = userService.findByUsername(userDetails.getUsername());
 		likeService.cancelDislike(postId, user);
+		return buildLikeResponse(postId, user);
 	}
-
 }

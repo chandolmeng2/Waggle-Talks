@@ -8,19 +8,20 @@ import { AuthContext } from "../../contexts/AuthContext";
 
 function BoardDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { currentUser } = useContext(AuthContext);
+
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentLoading, setCommentLoading] = useState(true);
+
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [dislikeCount, setDislikeCount] = useState(0);
-  const { currentUser } = useContext(AuthContext); // 로그인 유저 정보
-  const navigate = useNavigate();
-
-  // 댓글 상태
-  const [comments, setComments] = useState([]);
-  const [commentText, setCommentText] = useState("");
-  const [commentLoading, setCommentLoading] = useState(true);
 
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState("");
@@ -29,104 +30,115 @@ function BoardDetail() {
     post && String(currentUser?.id) === String(post.author?.id);
 
   useEffect(() => {
-    axiosInstance
-      .get(`/boards/${id}`)
-      .then((res) => setPost(res.data))
-      .finally(() => setLoading(false));
+    const fetchDetailData = async () => {
+      try {
+        setLoading(true);
+        setCommentLoading(true);
+
+        const [postRes, commentsRes, likesRes] = await Promise.all([
+          axiosInstance.get(`/boards/${id}`),
+          axiosInstance.get(`/boards/${id}/comments`),
+          axiosInstance.get(`/posts/${id}/likes-status`),
+        ]);
+
+        setPost(postRes.data);
+        setComments(commentsRes.data);
+
+        setLikeCount(likesRes.data.likeCount ?? 0);
+        setDislikeCount(likesRes.data.dislikeCount ?? 0);
+        setLiked(likesRes.data.likedByUser ?? false);
+        setDisliked(likesRes.data.dislikedByUser ?? false);
+      } catch (error) {
+        console.error("게시글 상세 조회 실패:", error);
+      } finally {
+        setLoading(false);
+        setCommentLoading(false);
+      }
+    };
+
+    fetchDetailData();
   }, [id]);
 
-  useEffect(() => {
-    axiosInstance
-      .get(`/boards/${id}/comments`)
-      .then((res) => setComments(res.data))
-      .finally(() => setCommentLoading(false));
-  }, [id]);
-
-  useEffect(() => {
-    if (post) {
-      setLikeCount(post.likeCount ?? 0);
-      setDislikeCount(post.dislikeCount ?? 0);
+  const toggleLike = async () => {
+    if (!currentUser) {
+      alert("로그인이 필요합니다.");
+      return;
     }
-  }, [post]);
 
-  useEffect(() => {
-    axiosInstance
-      .get(`/posts/${id}/likes-status`)
-      .then((res) => {
-        setLikeCount(res.data.likeCount ?? 0);
-        setDislikeCount(res.data.dislikeCount ?? 0);
-        setLiked(res.data.likedByUser ?? false);
-        setDisliked(res.data.dislikedByUser ?? false);
-      })
-      .catch(() => alert("좋아요/싫어요 수를 불러오는 데 실패했습니다."));
-  }, [id]);
+    try {
+      let res;
 
-  const toggleLike = () => {
-    if (liked) {
-      axiosInstance
-        .post(`/posts/${id}/like/cancel`)
-        .then((res) => {
-          setLikeCount(res.data.likeCount);
-          setLiked(false);
-        })
-        .catch(() => alert("좋아요 취소 중 오류가 발생했습니다."));
-    } else {
-      axiosInstance
-        .post(`/posts/${id}/like`, { userId: currentUser.id })
-        .then((res) => {
-          setLikeCount(res.data.likeCount);
-          setDislikeCount(res.data.dislikeCount);
-          setLiked(true);
-          setDisliked(false);
-        })
-        .catch(() => alert("좋아요 처리 중 오류가 발생했습니다."));
-    }
-  };
+      if (liked) {
+        res = await axiosInstance.post(`/posts/${id}/like/cancel`);
+        setLiked(false);
+      } else {
+        res = await axiosInstance.post(`/posts/${id}/like`, {
+          userId: currentUser.id,
+        });
+        setLiked(true);
+        setDisliked(false);
+      }
 
-  const toggleDislike = () => {
-    if (disliked) {
-      axiosInstance
-        .post(`/posts/${id}/dislike/cancel`)
-        .then((res) => {
-          setDislikeCount(res.data.dislikeCount);
-          setDisliked(false);
-        })
-        .catch(() => alert("싫어요 취소 중 오류가 발생했습니다."));
-    } else {
-      axiosInstance
-        .post(`/posts/${id}/dislike`)
-        .then((res) => {
-          setDislikeCount(res.data.dislikeCount);
-          setLikeCount(res.data.likeCount);
-          setDisliked(true);
-          setLiked(false);
-        })
-        .catch(() => alert("싫어요 처리 중 오류가 발생했습니다."));
+      setLikeCount(res.data.likeCount ?? 0);
+      setDislikeCount(res.data.dislikeCount ?? 0);
+    } catch (error) {
+      console.error("좋아요 처리 실패:", error?.response?.data || error);
+      alert("좋아요 처리 중 오류가 발생했습니다.");
     }
   };
 
-  const handleCommentSubmit = (e) => {
+  const toggleDislike = async () => {
+    if (!currentUser) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+
+    try {
+      let res;
+
+      if (disliked) {
+        res = await axiosInstance.post(`/posts/${id}/dislike/cancel`);
+        setDisliked(false);
+      } else {
+        res = await axiosInstance.post(`/posts/${id}/dislike`);
+        setDisliked(true);
+        setLiked(false);
+      }
+
+      setLikeCount(res.data.likeCount ?? 0);
+      setDislikeCount(res.data.dislikeCount ?? 0);
+    } catch (error) {
+      console.error("싫어요 처리 실패:", error?.response?.data || error);
+      alert("싫어요 처리 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleCommentSubmit = async (e) => {
     e.preventDefault();
     if (!commentText.trim()) return;
-    axiosInstance
-      .post(`/boards/${id}/comments`, { content: commentText })
-      .then((res) => {
-        setComments((prev) => [...prev, res.data]);
-        setCommentText("");
+
+    try {
+      const res = await axiosInstance.post(`/boards/${id}/comments`, {
+        content: commentText,
       });
+      setComments((prev) => [...prev, res.data]);
+      setCommentText("");
+    } catch (error) {
+      console.error("댓글 등록 실패:", error);
+      alert("댓글 등록 중 오류가 발생했습니다.");
+    }
   };
 
-  const handleDelete = () => {
-    if (window.confirm("정말 삭제하시겠습니까?")) {
-      axiosInstance
-        .delete(`/boards/${id}`)
-        .then(() => {
-          alert("삭제되었습니다.");
-          navigate("/boards"); // 게시글 목록 경로로 이동
-        })
-        .catch(() => {
-          alert("삭제 중 오류가 발생했습니다.");
-        });
+  const handleDelete = async () => {
+    if (!window.confirm("정말 삭제하시겠습니까?")) return;
+
+    try {
+      await axiosInstance.delete(`/boards/${id}`);
+      alert("삭제되었습니다.");
+      navigate("/boards");
+    } catch (error) {
+      console.error("게시글 삭제 실패:", error);
+      alert("삭제 중 오류가 발생했습니다.");
     }
   };
 
@@ -134,45 +146,48 @@ function BoardDetail() {
     navigate(`/boards/${id}/edit`);
   };
 
-  const handleDeleteComment = (commentId) => {
-    if (window.confirm("댓글을 정말 삭제하시겠습니까?")) {
-      axiosInstance
-        .delete(`/boards/${id}/comments/${commentId}`)
-        .then(() => {
-          setComments((prev) => prev.filter((c) => c.id !== commentId));
-        })
-        .catch(() => alert("삭제 중 오류가 발생했습니다."));
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm("댓글을 정말 삭제하시겠습니까?")) return;
+
+    try {
+      await axiosInstance.delete(`/boards/${id}/comments/${commentId}`);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (error) {
+      console.error("댓글 삭제 실패:", error);
+      alert("삭제 중 오류가 발생했습니다.");
     }
   };
 
-  // 댓글 수정 시작
   const handleEditComment = (commentId, currentContent) => {
     setEditingCommentId(commentId);
     setEditingCommentText(currentContent);
   };
 
-  // 댓글 수정 완료
-  const handleSaveEditComment = (commentId) => {
+  const handleSaveEditComment = async (commentId) => {
     if (!editingCommentText.trim()) {
       alert("댓글 내용을 입력하세요.");
       return;
     }
-    axiosInstance
-      .put(`/boards/${id}/comments/${commentId}`, {
+
+    try {
+      await axiosInstance.put(`/boards/${id}/comments/${commentId}`, {
         content: editingCommentText,
-      })
-      .then((res) => {
-        setComments((prev) =>
-          prev.map((comment) =>
-            comment.id === commentId
-              ? { ...comment, content: editingCommentText }
-              : comment
-          )
-        );
-        setEditingCommentId(null);
-        setEditingCommentText("");
-      })
-      .catch(() => alert("댓글 수정 중 오류가 발생했습니다."));
+      });
+
+      setComments((prev) =>
+        prev.map((comment) =>
+          comment.id === commentId
+            ? { ...comment, content: editingCommentText }
+            : comment
+        )
+      );
+
+      setEditingCommentId(null);
+      setEditingCommentText("");
+    } catch (error) {
+      console.error("댓글 수정 실패:", error);
+      alert("댓글 수정 중 오류가 발생했습니다.");
+    }
   };
 
   if (loading) {
@@ -218,6 +233,7 @@ function BoardDetail() {
               </span>
             )}
           </div>
+
           {isAuthor && (
             <div>
               <Button
@@ -234,13 +250,16 @@ function BoardDetail() {
             </div>
           )}
         </Card.Header>
+
         <Card.Body>
           <Card.Text>{post.content}</Card.Text>
+
           {post.updatedAt && (
             <div className="text-muted">
               수정일: {new Date(post.updatedAt).toLocaleString()}
             </div>
           )}
+
           <Button
             variant="secondary"
             className="mt-3"
@@ -250,12 +269,13 @@ function BoardDetail() {
           </Button>
         </Card.Body>
       </Card>
+
       <div
         style={{
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          gap: "40px", // 버튼 간격
+          gap: "40px",
           marginTop: "40px",
           marginBottom: "60px",
         }}
@@ -263,7 +283,7 @@ function BoardDetail() {
         <Button
           variant={liked ? "primary" : "outline-primary"}
           style={{
-            width: "64px", // 버튼 지름
+            width: "64px",
             height: "64px",
             borderRadius: "50%",
             fontSize: "2rem",
@@ -280,6 +300,7 @@ function BoardDetail() {
           <FaThumbsUp style={{ fontSize: "1.7rem" }} />
           <span style={{ fontSize: "1rem", fontWeight: 600 }}>{likeCount}</span>
         </Button>
+
         <Button
           variant={disliked ? "danger" : "outline-danger"}
           style={{
@@ -306,6 +327,7 @@ function BoardDetail() {
 
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
         <h5 className="mt-4 mb-3">댓글</h5>
+
         {commentLoading ? (
           <div className="text-center mb-2 text-secondary">
             댓글을 불러오는 중...
@@ -320,6 +342,7 @@ function BoardDetail() {
               currentUser &&
               comment.author &&
               String(currentUser.id) === String(comment.author.id);
+
             return (
               <div
                 className="mb-2 p-3 rounded border"
@@ -333,7 +356,6 @@ function BoardDetail() {
                       multiline
                       rows={3}
                       value={editingCommentText}
-                      placeholder={comment.content}
                       onChange={(e) => setEditingCommentText(e.target.value)}
                       variant="outlined"
                     />
@@ -358,7 +380,9 @@ function BoardDetail() {
                             variant="outline-secondary"
                             size="sm"
                             className="me-2"
-                            onClick={() => handleEditComment(comment.id)}
+                            onClick={() =>
+                              handleEditComment(comment.id, comment.content)
+                            }
                           >
                             수정
                           </Button>
@@ -378,7 +402,7 @@ function BoardDetail() {
             );
           })
         )}
-        {/* 댓글 입력창 */}
+
         <form className="mt-3 d-flex" onSubmit={handleCommentSubmit}>
           <TextField
             label="댓글"
