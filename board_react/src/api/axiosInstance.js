@@ -1,23 +1,18 @@
-// src/api/axiosInstance.js
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "/api", 
+  baseURL: process.env.REACT_APP_API_BASE_URL,
   timeout: 5000,
 });
 
-// 요청 인터셉터: 모든 요청에 토큰 자동 포함
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-// 응답 인터셉터: 401 Unauthorized 발생 시 리프레시 토큰으로 갱신 시도
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -34,7 +29,10 @@ axiosInstance.interceptors.response.use(
         const refreshToken = localStorage.getItem("refreshToken");
         if (!refreshToken) throw new Error("No refresh token");
 
-        const { data } = await axios.post("/api/auth/refresh-token", { refreshToken });
+        const { data } = await axios.post(
+          `${process.env.REACT_APP_API_BASE_URL}/auth/refresh-token`,
+          { refreshToken }
+        );
 
         const newAccessToken = data.accessToken;
         localStorage.setItem("token", newAccessToken);
